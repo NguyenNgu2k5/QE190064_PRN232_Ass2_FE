@@ -12,5 +12,5 @@ export default function TagsPage() {
 
   useEffect(() => { api<Tag[]>("/tags").then(setItems).catch((e) => setError(e.message)); }, []);
 
-  return <><PageHeader eyebrow="Directory" title="Tags" description="Browse the labels used to group and filter active tasks." action={<Link className="button" href="/tags/manage">Manage tags</Link>} />{error ? <ErrorState message={error} /> : !items ? <Loading /> : items.length ? <section className="panel tag-directory" aria-label="Task tags"><Tags tags={items} /></section> : <EmptyState text="No tags have been created yet." />}</>;
+  return <><PageHeader eyebrow="Directory" title="Tags" description="Browse the labels used to group and filter active tasks." action={<Link className="button" href="/admin/tags">Manage tags</Link>} />{error ? <ErrorState message={error} /> : !items ? <Loading /> : items.length ? <section className="panel tag-directory" aria-label="Task tags"><Tags tags={items} /></section> : <EmptyState text="No tags have been created yet." />}</>;
 }
