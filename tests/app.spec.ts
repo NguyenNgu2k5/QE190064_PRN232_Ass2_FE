@@ -43,9 +43,12 @@ test.afterAll(() => {
 });
 test("guests can browse and protected pages redirect to login", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Work at a glance." })).toBeVisible();
   await expect(page.locator(".metric")).toHaveCount(4);
   await expect(page.getByRole("link", { name: "Login", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open workspace/ })).toHaveAttribute("href", "/admin/tasks");
+  await page.getByRole("link", { name: /Open workspace/ }).click();
+  await expect(page).toHaveURL(/\/login$/);
   for (const path of ["/admin", "/admin/tasks", "/admin/accounts"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login$/);
@@ -55,6 +58,16 @@ test("guests can browse and protected pages redirect to login", async ({ page })
     await expect(page.locator("main h1")).toBeVisible();
     await expect(page.locator("main [role=alert]")).toHaveCount(0);
   }
+  await page.setViewportSize({ width: 375, height: 1000 });
+  await page.goto("/");
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  await expect(navigation.getByRole("link", { name: "Login", exact: true })).toBeVisible();
+  const register = navigation.getByRole("link", { name: "Register", exact: true });
+  await expect(register).toBeVisible();
+  const bounds = await register.boundingBox();
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(375);
+  await register.click();
+  await expect(page).toHaveURL(/\/register$/);
 });
 test("registration validates linked fields, confirms passwords, creates Staff and redirects with success", async ({ page }) => {
   await page.goto("/register");
@@ -221,10 +234,10 @@ test("public search combines priority and title filters and opens a detail", asy
   await page.goto("/search");
   await page.getByLabel(/^Title(?: \*)?$/).fill(prefix + " ownership");
   await page.getByLabel(/^Priority(?: \*)?$/).selectOption("0");
-  const card = page.locator(".card").filter({ hasText: prefix + " ownership" });
-  await expect(card).toHaveCount(1);
-  await expect(card).toContainText("Low");
-  await card.click();
+  const row = page.locator(".card").filter({ hasText: prefix + " ownership" });
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Low");
+  await row.click();
   await expect(page.locator("main h1")).toHaveText(prefix + " ownership");
 });
 test("layouts fit 375, 768 and 1440 pixels; forms and tables remain usable", async ({ page }) => {
@@ -235,19 +248,39 @@ test("layouts fit 375, 768 and 1440 pixels; forms and tables remain usable", asy
     await page.setViewportSize({ width, height: 1000 });
     for (const path of ["/", "/admin", "/admin/tasks", "/admin/accounts", "/login", "/register", "/search"]) {
       await page.goto(path);
-      await expect(page.locator("main h1")).toBeVisible();
+      await expect(page.locator("main h1").first()).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), width + "px " + path).toBeTruthy();
     }
     await page.goto("/admin");
     await expect(page.locator(".metric")).toHaveCount(4);
+    const logout = page.getByRole("button", { name: "Logout", exact: true });
+    await expect(logout).toBeVisible();
+    const logoutBounds = await logout.boundingBox();
+    expect(logoutBounds!.x + logoutBounds!.width).toBeLessThanOrEqual(width);
+    const management = page.getByRole("navigation", { name: "Management navigation" });
+    await expect(management.getByRole("link")).toHaveCount(6);
+    await management.getByRole("link", { name: "Tasks", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/admin\/tasks$/);
+    await page.goto("/admin");
     if (screenshots) await page.screenshot({ path: screenshots + "/dashboard-" + width + ".png", fullPage: true });
     await page.goto("/admin/tasks");
+    if (width === 375) {
+      const table = page.getByRole("region", { name: "Tasks list", exact: true });
+      await table.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect.poll(() => table.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+    }
     await page.getByRole("button", { name: "+ New task", exact: true }).click();
     await expect(page.getByLabel(/^Title(?: \*)?$/)).toBeVisible();
     const dialog = await page.getByRole("dialog").evaluate(el => { const rect = el.getBoundingClientRect(); return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }; });
     expect(dialog.width).toBeLessThanOrEqual(width);
     expect(Math.abs(dialog.x - (width - dialog.width) / 2)).toBeLessThanOrEqual(1);
     expect(Math.abs(dialog.y - (1000 - dialog.height) / 2)).toBeLessThanOrEqual(1);
+    const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+    await cancel.scrollIntoViewIfNeeded();
+    const cancelBounds = await cancel.boundingBox();
+    expect(cancelBounds!.y + cancelBounds!.height).toBeLessThanOrEqual(dialog.y + dialog.height);
     await page.keyboard.press("Escape");
   }
   await page.emulateMedia({ reducedMotion: "reduce" });

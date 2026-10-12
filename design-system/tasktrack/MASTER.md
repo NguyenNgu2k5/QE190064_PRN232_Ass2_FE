@@ -1,16 +1,16 @@
-# TaskTrack interface
+# TaskTrack — AS1 frontend extended for AS2
 
-Product: task and team management web app with public reading and authenticated management.
+Direction confirmed on 13 October 2026: reuse the original Assignment 1 frontend and add the required Assignment 2 functionality.
 
-The ui-ux-pro-max enterprise dashboard search verified the applicable Minimalism/Swiss style and blue/slate palette. Its marketing hero pattern does not fit this app; use the workspace layout below instead. This is product-specific layout guidance.
-
-- Sidebar for Explore and Manage sections; account state and logout in the header.
-- Blue #2563EB primary, slate #182438 text, #F5F7FB background, white surfaces; CSS variables are in globals.css.
-- Geist typography already used by the project; clear hierarchy and tabular counts.
-- Four real API totals, task distribution and recent projects on the overview.
-- Native dialogs for CRUD and deletion, linked form labels, visible keyboard focus, field errors and a focused error summary for authentication forms.
-- SVG icons with decorative semantics next to text, no icon dependency.
-- Desktop/tablet/mobile at 1440/768/375px, internal table scrolling, no page overflow.
-- Loading, empty, error and success states; errors persist for correction.
-- Minimum 44px primary controls, reduced-motion support, password managers and paste supported.
-- Public GET remains available; management pages use authentication, and Accounts require Admin.
+- Public pages keep the green theme and Geist typography. Overview uses a dashboard; Departments, Projects, Tasks, Tags and Search share its typography, white surfaces, spacing and rounded cards.
+- app/globals.css retains the AS1 baseline. app/as2.css adds the shared public workspace style, account navigation, admin pages, authentication forms, feedback, dialogs and the narrow detail-panel guard.
+- The existing AS1 top navigation stays in place. Its Manage link points to /admin; AS2 adds Login/Register or the user's name and Logout.
+- Public management links change from /{section}/manage to /admin/{section}, as required by AS2. Public read routes and backend GET APIs remain available to guests.
+- The public home shows total tasks, total projects, task completion and overdue tasks. The protected /admin dashboard has four separate summary cards for departments, projects, tasks and tags.
+- Management navigation links to Dashboard, Departments, Projects, Tasks and Tags; Accounts is shown only to Admin.
+- Keep the tested AS2 JWT/session client, auth validation, protected layout, Admin-only accounts and automatic redirect on expiry/API 401.
+- Create/Edit use native dialogs; deletion requires confirmation; tasks are soft-deleted and tags use multi-select. Retain modal Escape/focus restoration, linked field labels and persistent errors.
+- Keep nonvisual accessibility attributes added to the project task table and empty states.
+- Reuse the existing dependencies. Do not copy AS1 secrets, database settings or generated files, or downgrade the installed Next.js version.
+- The earlier blue/sidebar redesign is historical and no longer the implementation target.
+- Page-specific rules are in pages/overview.md and pages/directories.md. Tasks and Search reuse TaskCard; directory cards align their content without truncation.

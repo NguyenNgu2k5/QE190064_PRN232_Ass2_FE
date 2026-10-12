@@ -1,2 +1,2 @@
 import { Overview } from "@/components/Overview";
-export default function DashboardPage() { return <Overview management />; }
+export default function DashboardPage() { return <Overview />; }

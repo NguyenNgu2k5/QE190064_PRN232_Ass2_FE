@@ -11,7 +11,7 @@ export function Modal({ title, children, onClose }: { title: string; children: R
     return () => { dialog?.close(); if (previous instanceof HTMLElement) previous.focus(); };
   }, []);
   return <dialog ref={ref} className="modal" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose(); }}>
-    <div className="modal-header"><h2 id={titleId}>{title}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></div>
+    <div className="modal-header"><h2 id={titleId}>{title}</h2><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose}><span aria-hidden="true">×</span></button></div>
     <div className="modal-body">{children}</div>
   </dialog>;
 }
