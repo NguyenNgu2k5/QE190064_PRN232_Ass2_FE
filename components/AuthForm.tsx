@@ -8,7 +8,7 @@ import type { Session } from "@/lib/session";
 import { useAuth } from "./AuthProvider";
 import { Field, Feedback } from "./Field";
 
-export function AuthForm({ mode, registered = false }: { mode: "login" | "register"; registered?: boolean }) {
+export function AuthForm({ mode, registered = false, passwordChanged = false }: { mode: "login" | "register"; registered?: boolean; passwordChanged?: boolean }) {
   const register = mode === "register";
   const router = useRouter();
   const { signIn } = useAuth();
@@ -42,7 +42,7 @@ export function AuthForm({ mode, registered = false }: { mode: "login" | "regist
   }
   return <div className="auth-layout"><section className="auth-intro"><p className="eyebrow">WORKSPACE ACCESS</p><h1>{register ? "Create your account" : "Sign in to TaskTrack"}</h1><p>{register ? "Create a Staff account to manage departments, projects, tasks and tags." : "Manage your team's work with your workspace account."}</p><div className="auth-intro-line" /><p className="muted">Public project and task information remains available without signing in.</p><Link href="/" className="text-link">Explore the workspace →</Link></section>
     <section className="panel auth-card"><h2>{register ? "Create an account" : "Sign in"}</h2><p className="muted">{register ? "New accounts receive Staff access." : "Use your workspace email and password."}</p>
-      <Feedback error={error} notice={registered ? "Your account is ready. Sign in to continue." : undefined} />
+      <Feedback error={error} notice={passwordChanged ? "Password updated. Sign in with your new password." : registered ? "Your account is ready. Sign in to continue." : undefined} />
       {Object.keys(errors).length > 0 && <div ref={summary} tabIndex={-1} className="feedback error" role="alert"><strong>Check the highlighted fields.</strong><ul>{Object.entries(errors).map(([key, message]) => <li key={key}><a href={"#auth-" + key} onClick={() => document.getElementById("auth-" + key)?.focus()}>{message}</a></li>)}</ul></div>}
       <form onSubmit={submit} noValidate className="auth-form">
         {register && <Field id="auth-fullName" label="Full name" required error={errors.fullName}><input name="fullName" autoComplete="name" maxLength={100} value={values.fullName} onChange={(event) => set("fullName", event.target.value)} /></Field>}

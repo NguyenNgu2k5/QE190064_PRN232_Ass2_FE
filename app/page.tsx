@@ -4,106 +4,19 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Department, Project, Task } from "@/lib/types";
-import { EmptyState, ErrorState, Loading, PageHeader, PriorityBadge, StatusBadge } from "@/components/ui";
-
-const taskStatuses = ["To do", "In progress", "Done", "Cancelled"];
+import { EmptyState, ErrorState, Loading, PageHeader, StatusBadge } from "@/components/ui";
 
 export default function Home() {
   const [data, setData] = useState<{ departments: Department[]; projects: Project[]; tasks: Task[] }>();
   const [error, setError] = useState("");
-  useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([
-      api<Department[]>("/departments", { signal: controller.signal }),
-      api<Project[]>("/projects", { signal: controller.signal }),
-      api<Task[]>("/tasks", { signal: controller.signal }),
-    ])
-      .then(([departments, projects, tasks]) => setData({ departments, projects, tasks }))
-      .catch((cause: Error) => { if (cause.name !== "AbortError") setError(cause.message); });
-    return () => controller.abort();
-  }, []);
-
-  const header = <PageHeader eyebrow="Workspace overview" title="Work at a glance." description="A shared view of your projects, progress, and what needs attention." action={<Link className="button" href="/admin/tasks">Open workspace <span aria-hidden="true">↗</span></Link>} />;
-  if (error || !data) return <div className="overview-dashboard">
-    {header}
-    {error ? <><ErrorState message={error} /><button className="button secondary dashboard-retry" onClick={() => window.location.reload()}>Try again</button></> : <Loading />}
-  </div>;
-
-  const now = new Date();
-  // Due dates are calendar dates, so compare them with today's date in the viewer's timezone.
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const counts = taskStatuses.map((_, status) => data.tasks.filter(task => task.status === status).length);
-  const trackedTasks = data.tasks.filter(task => task.status !== 3);
-  const completion = Math.round(counts[2] / Math.max(1, trackedTasks.length) * 100);
-  const deadlines = data.tasks.filter(task => task.status < 2 && task.dueDate)
-    .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!));
-  const overdue = deadlines.filter(task => task.dueDate! < today).length;
-  const projectDepartments = new Map(data.projects.map(project => [project.projectId, project.departmentId]));
-  const workloads = data.departments.map(department => ({
-    ...department,
-    count: data.tasks.filter(task => projectDepartments.get(task.projectId) === department.departmentId).length,
-  })).sort((a, b) => b.count - a.count);
-  const maxWorkload = Math.max(1, ...workloads.map(department => department.count));
-
-  return <div className="overview-dashboard">
-    {header}
-    <section className="metric-grid dashboard-metrics" aria-label="Workspace statistics">
-      <div className="metric dashboard-metric-primary"><span>Total tasks</span><strong>{data.tasks.length}</strong><span>{counts[1]} in progress</span></div>
-      <div className="metric"><span>Total projects</span><strong>{data.projects.length}</strong><span>Across {data.departments.length} departments</span></div>
-      <div className="metric"><span>Completion rate</span><strong>{completion}<small>%</small></strong><span>{counts[2]} of {trackedTasks.length} non-cancelled tasks done</span></div>
-      <div className={`metric${overdue ? " dashboard-metric-alert" : ""}`}><span>Overdue tasks</span><strong>{overdue}</strong><span>{overdue ? "Open tasks past their due date" : "No overdue tasks"}</span></div>
-    </section>
-
-    <div className="dashboard-grid">
-      <section className="panel dashboard-status" aria-labelledby="task-status-heading">
-        <div className="dashboard-panel-heading"><div><h2 id="task-status-heading">Task status</h2><p>How work is moving through the workspace.</p></div><Link href="/tasks" aria-label="View all tasks">View tasks <span aria-hidden="true">↗</span></Link></div>
-        {data.tasks.length ? <div className="dashboard-status-body">
-          <div className="dashboard-donut" aria-hidden="true">
-            <svg viewBox="0 0 100 100">
-              <circle className="dashboard-ring-track" cx="50" cy="50" r="42" />
-              {counts.map((count, status) => <circle className={`dashboard-ring dashboard-status-${status}`} cx="50" cy="50" r="42" pathLength="100" strokeDasharray={`${count / data.tasks.length * 100} 100`} strokeDashoffset={-counts.slice(0, status).reduce((sum, value) => sum + value, 0) / data.tasks.length * 100} key={status} />)}
-            </svg>
-            <div><strong>{data.tasks.length}</strong><span>Total tasks</span></div>
-          </div>
-          <ul className="dashboard-legend" aria-label="Task counts by status">
-            {taskStatuses.map((label, status) => <li key={label}><span className={`dashboard-dot dashboard-status-${status}`} aria-hidden="true" /><span>{label}</span><strong>{counts[status]}</strong><small>{Math.round(counts[status] / data.tasks.length * 100)}%</small></li>)}
-          </ul>
-        </div> : <EmptyState text="Create a task to see the status breakdown." />}
-      </section>
-
-      <section className="panel dashboard-workload" aria-labelledby="department-workload-heading">
-        <div className="dashboard-panel-heading"><div><h2 id="department-workload-heading">Work by department</h2><p>{workloads.length > 6 ? "Top 6 departments by task count." : "Task distribution across departments."}</p></div><Link href="/departments" aria-label="View all departments">View all <span aria-hidden="true">↗</span></Link></div>
-        {workloads.length ? <ul className="dashboard-workload-list">
-          {workloads.slice(0, 6).map(department => <li key={department.departmentId}><Link href={`/departments/${department.departmentId}`}><span>{department.departmentName}</span><div className="dashboard-bar" aria-hidden="true"><span style={{ width: `${department.count / maxWorkload * 100}%` }} /></div><strong>{department.count}<small> tasks</small></strong></Link></li>)}
-        </ul> : <EmptyState text="Create a department to organize your workspace." />}
-      </section>
-
-      <section className="panel dashboard-projects" aria-labelledby="project-progress-heading">
-        <div className="dashboard-panel-heading"><div><h2 id="project-progress-heading">Project progress</h2><p>Completed tasks in your {data.projects.length > 6 ? "6 most recent" : "current"} projects. Cancelled tasks excluded.</p></div><Link href="/projects" aria-label="View all projects">View all <span aria-hidden="true">↗</span></Link></div>
-        {data.projects.length ? <ul className="dashboard-project-list">
-          {data.projects.slice(0, 6).map(project => {
-            const tasks = trackedTasks.filter(task => task.projectId === project.projectId);
-            const done = tasks.filter(task => task.status === 2).length;
-            const progress = Math.round(done / Math.max(1, tasks.length) * 100);
-            return <li key={project.projectId}>
-              <div className="dashboard-project-title"><Link href={`/projects/${project.projectId}`}><strong>{project.projectName}</strong><span>{project.departmentName}</span></Link><StatusBadge value={project.status} /></div>
-              <div className="dashboard-project-progress"><progress max="100" value={progress} aria-label={`${project.projectName} task completion`} /><strong>{tasks.length ? `${progress}%` : "—"}</strong><span>{tasks.length ? `${done}/${tasks.length} tasks done` : "No non-cancelled tasks"}</span></div>
-            </li>;
-          })}
-        </ul> : <EmptyState text="Create a project to start tracking progress." />}
-      </section>
-
-      <section className="panel dashboard-deadlines" aria-labelledby="task-deadlines-heading" id="task-deadlines">
-        <div className="dashboard-panel-heading"><div><h2 id="task-deadlines-heading">Task deadlines</h2><p>Open tasks, earliest due first.</p></div><Link href="/tasks" aria-label="View all task deadlines">View all <span aria-hidden="true">↗</span></Link></div>
-        {deadlines.length ? <ul className="dashboard-deadline-list">
-          {deadlines.slice(0, 5).map(task => <li key={task.taskId}><Link href={`/tasks/${task.taskId}`}>
-            <span className={`dashboard-deadline-marker${task.dueDate! < today ? " is-overdue" : ""}`} aria-hidden="true">{task.dueDate! < today ? "!" : "↗"}</span>
-            <div><strong>{task.title}</strong><span>{task.projectName}</span><span className={`dashboard-deadline-date${task.dueDate! < today ? " is-overdue" : ""}`}><time dateTime={task.dueDate!}>{task.dueDate}</time> · {task.dueDate! < today ? "Overdue" : task.dueDate === today ? "Due today" : "Upcoming"}</span></div>
-            <PriorityBadge value={task.priority} />
-          </Link></li>)}
-        </ul> : <EmptyState text="No open tasks with a due date. You're all caught up." />}
-      </section>
-    </div>
-    <p className="dashboard-note">Workspace snapshot · Counts include active records. Completion rates exclude cancelled tasks.</p>
-  </div>;
+  useEffect(() => { Promise.all([api<Department[]>("/departments"), api<Project[]>("/projects"), api<Task[]>("/tasks")]).then(([departments, projects, tasks]) => setData({ departments, projects, tasks })).catch((e) => setError(e.message)); }, []);
+  return <>
+    <section className="hero"><div className="hero-copy"><div className="hero-status"><span /> Workspace online</div><p className="eyebrow">Task management, made visible</p><h1>Move work forward <em>with clarity.</em></h1><p>A shared view of departments, projects, and the work that moves them forward—without the noise.</p><div className="actions"><Link href="/admin/tasks" className="button">Open workspace <span aria-hidden="true">→</span></Link><Link href="/search" className="text-link">Find a task <span aria-hidden="true">↗</span></Link></div></div><div className="hero-art"><div><p className="eyebrow">How work flows</p><h2>From brief to done, every step stays visible.</h2></div><div className="flow-board" aria-hidden="true"><div><span>01</span><strong>Plan</strong><i /></div><div><span>02</span><strong>Build</strong><i /></div><div><span>03</span><strong>Review</strong><i /></div></div></div></section>
+    <PageHeader eyebrow="Overview" title="A calm view of busy work." description="Explore active projects, see how work is distributed, and jump into the next useful detail." />
+    {error ? <ErrorState message={error} /> : !data ? <Loading /> : <>
+      <section className="metric-grid"><div className="metric"><span className="metric-index">01</span><strong>{data.departments.length}</strong><span>Active departments</span></div><div className="metric"><span className="metric-index">02</span><strong>{data.projects.length}</strong><span>Active projects</span></div><div className="metric"><span className="metric-index">03</span><strong>{data.tasks.length}</strong><span>Active tasks</span></div></section>
+      <div className="section-label"><div><p className="eyebrow">Current portfolio</p><h2>Projects in motion</h2></div><Link href="/projects">View all projects →</Link></div>
+      {data.projects.length ? <div className="card-grid project-grid">{data.projects.slice(0, 6).map((project, index) => <Link className={`card project-card${index === 0 ? " featured" : ""}`} href={`/projects/${project.projectId}`} key={project.projectId}><div className="card-topline"><span className="project-number">{String(index + 1).padStart(2, "0")}</span><StatusBadge value={project.status} /></div><h3>{project.projectName}</h3><p>{project.description || "No project description yet."}</p><div className="card-meta"><span>{project.departmentName}</span><span>Starts {project.startDate}</span></div><span className="card-arrow" aria-hidden="true">↗</span></Link>)}</div> : <EmptyState text="Create a project to start organizing work." />}
+    </>}
+  </>;
 }

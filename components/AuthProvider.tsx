@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, json, refreshSession } from "@/lib/api";
 import { clearSession, readSession, saveSession, type Session } from "@/lib/session";
 import type { Account } from "@/lib/types";
 
@@ -16,17 +16,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const restoreRequest = useRef<AbortController | null>(null);
   const signIn = useCallback((value: Session) => { restoreRequest.current?.abort(); saveSession(value); setSession(value); setLoading(false); }, []);
   // A full navigation clears in-memory auth and avoids the protected layout racing the home redirect.
-  const logout = useCallback(() => { restoreRequest.current?.abort(); clearSession(); window.location.replace("/"); }, []);
+  const logout = useCallback(async () => {
+    restoreRequest.current?.abort();
+    const cached = readSession();
+    clearSession();
+    try { if (cached?.refreshToken) await api("/auth/logout", { ...json({ refreshToken: cached.refreshToken }), signal: AbortSignal.timeout(10000) }); }
+    catch { /* Local logout still completes if the backend is unreachable. */ }
+    finally { window.location.replace("/"); }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     restoreRequest.current = controller;
     async function restore() {
-      const cached = readSession();
       try {
-        if (cached && Date.parse(cached.expiresAt) > Date.now()) {
+        let cached = readSession();
+        if (cached && Date.parse(cached.expiresAt) <= Date.now()) cached = await refreshSession(cached.token);
+        if (cached) {
           const account = await api<Account>("/auth/me", { signal: controller.signal });
-          if (!controller.signal.aborted) { const value = { ...cached, account }; saveSession(value); setSession(value); }
+          const latest = readSession();
+          if (!controller.signal.aborted && latest) { const value = { ...latest, account }; saveSession(value); setSession(value); }
         } else clearSession();
       } catch (cause) {
         if ((cause as Error).name !== "AbortError") { clearSession(); setSession(null); }
@@ -34,15 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     void restore();
     const expired = () => { restoreRequest.current?.abort(); clearSession(); setSession(null); setLoading(false); router.replace("/login"); };
-    const storage = (event: StorageEvent) => { if (event.key === "tasktrack.session" && !event.newValue) { restoreRequest.current?.abort(); setSession(null); setLoading(false); } };
+    const renewed = () => { setSession(readSession()); };
+    const storage = (event: StorageEvent) => { if (event.key === "tasktrack.session") { restoreRequest.current?.abort(); setSession(readSession()); setLoading(false); } };
     window.addEventListener("session-expired", expired);
     window.addEventListener("storage", storage);
-    return () => { controller.abort(); window.removeEventListener("session-expired", expired); window.removeEventListener("storage", storage); };
+    window.addEventListener("session-refreshed", renewed);
+    return () => { controller.abort(); window.removeEventListener("session-expired", expired); window.removeEventListener("storage", storage); window.removeEventListener("session-refreshed", renewed); };
   }, [router]);
 
   useEffect(() => {
     if (!session) return;
-    const timer = window.setTimeout(() => window.dispatchEvent(new Event("session-expired")), Math.max(0, Date.parse(session.expiresAt) - Date.now()));
+    const timer = window.setTimeout(() => { void refreshSession(session.token).catch(() => window.dispatchEvent(new Event("session-expired"))); }, Math.max(0, Date.parse(session.expiresAt) - Date.now() - 30000));
     return () => window.clearTimeout(timer);
   }, [session]);
   const value = useMemo(() => ({ account: session?.account ?? null, loading, signIn, logout }), [session, loading, signIn, logout]);

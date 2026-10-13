@@ -1,6 +1,6 @@
 import type { Account } from "./types";
 
-export type Session = { token: string; expiresAt: string; account: Account };
+export type Session = { token: string; expiresAt: string; refreshToken?: string; account: Account };
 export const sessionKey = "tasktrack.session";
 
 export function readSession(): Session | null {
@@ -8,6 +8,7 @@ export function readSession(): Session | null {
   try {
     const value = JSON.parse(window.localStorage.getItem(sessionKey) || "null") as Session | null;
     if (!value || typeof value.token !== "string" || !Number.isFinite(Date.parse(value.expiresAt)) || !value.account || !Number.isInteger(value.account.accountId) || ![0, 1].includes(value.account.role)) return null;
+    if (value.refreshToken !== undefined && typeof value.refreshToken !== "string") return null;
     return value;
   } catch { return null; }
 }

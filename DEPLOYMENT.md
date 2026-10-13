@@ -4,6 +4,10 @@ Dành cho frontend AS2 kế thừa public UI AS1. Backend phải có URL Render 
 
 Bản production: [TaskTrack AS2](https://qe190064-prn232-ass2-fe.vercel.app), API `https://qe190064-prn232-ass2-be.onrender.com/api`. Đã kiểm tra Register Staff, Admin/Staff, CRUD, quyền, session/logout và responsive trên hệ thống live. Bản hiện tại được deploy qua API từ đúng source đã commit vì tài khoản Vercel chưa có GitHub Login Connection; push Git mới chưa tự deploy frontend. Khi cập nhật, deploy lại source hoặc hoàn tất Git connection trước khi dựa vào auto-deploy.
 
+## Bản bổ sung đang chờ deploy
+
+Source đã khôi phục chín trang public AS1 và thêm `/profile`, tự refresh access token, logout thu hồi phiên. Đã đạt 17/17 Playwright và 4/4 unit; build/lint/typecheck đạt. Kết nối Vercel hiện không thấy team có quyền, nên chưa đưa bản bổ sung lên live và chưa xác nhận Git auto-deploy. Kết nối lại đúng tài khoản/workspace vibe-cast trước khi cập nhật project hiện có; không tạo project thay thế chỉ để tránh lỗi quyền.
+
 ## Cấu hình project
 
 1. Commit/push những thay đổi đã kiểm tra lên repo AS2 `NguyenNgu2k5/QE190064_PRN232_Ass2_FE`. Dịch vụ Git chỉ build source đã push.

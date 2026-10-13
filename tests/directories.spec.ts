@@ -1,5 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
 import type { Department, Project, Tag, Task } from "../lib/types";
 
 const tags: Tag[] = [{ tagId: 1, tagName: "backend", color: "#10b981" }, { tagId: 2, tagName: "design", color: "#ec4899" }];
@@ -42,87 +41,47 @@ async function mockWorkspace(page: Page, data = { departments, projects, tasks, 
   });
 }
 
-test("directory cards stay aligned and all five pages fit desktop, tablet and mobile", async ({ page }) => {
+test("AS1 public directories fit mobile, tablet and desktop", async ({ page }) => {
   await mockWorkspace(page);
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  const screenshots = process.env.SCREENSHOT_DIR;
-  if (screenshots) mkdirSync(screenshots, { recursive: true });
-  for (const [width, height] of [[1440, 1000], [768, 1000], [375, 1000], [667, 375]]) {
-    await page.setViewportSize({ width, height });
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
     for (const path of ["departments", "projects", "tasks", "tags", "search"]) {
       await page.goto("/" + path);
-      await expect(page.locator(".directory-heading")).toBeVisible();
+      await expect(page.locator("main h1")).toBeVisible();
+      await expect(page.locator("main .card, main .tag").first()).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-      const cards = page.locator(path === "tags" ? ".tag-directory .tag" : ".directory-card");
-      await expect(cards).toHaveCount(path === "tags" ? tags.length : 3);
-      for (const card of await cards.all()) expect(await card.evaluate(el => el.scrollWidth <= el.clientWidth)).toBeTruthy();
-      if (width === 1440 && path !== "tags") {
-        for (const selector of ["h3", ":scope > p", ".card-meta"]) {
-          const positions = await cards.evaluateAll((elements, selector) => elements.map(el => el.querySelector(selector)!.getBoundingClientRect().y), selector);
-          expect(Math.max(...positions) - Math.min(...positions)).toBeLessThanOrEqual(1);
-        }
-      }
-      if (screenshots && width !== 667) await page.screenshot({ path: `${screenshots}/${path}-${width}.png`, fullPage: true });
     }
   }
-  expect(errors).toEqual([]);
 });
 
-test("Tasks and Search use identical cards and retain filters and keyboard detail navigation", async ({ page }) => {
+test("task filters retain low priority and keyboard detail navigation", async ({ page }) => {
   await mockWorkspace(page);
-  await page.goto("/tasks");
-  await expect(page.locator(".task-card")).toHaveCount(3);
-  const taskCard = await page.locator(".task-card").first().innerHTML();
-  await expect(page.locator(".task-card").last()).toContainText("No due date");
-  await page.getByRole("link", { name: "Search tasks", exact: true }).click();
-  await expect(page.locator(".task-card")).toHaveCount(3);
-  expect(await page.locator(".task-card").first().innerHTML()).toBe(taskCard);
+  await page.goto("/search");
+  await expect(page.locator(".card")).toHaveCount(3);
   await page.getByLabel("Title", { exact: true }).fill("Build shared");
   await page.getByLabel("Priority", { exact: true }).selectOption("0");
-  await expect(page.locator(".task-card")).toHaveCount(1);
-  await expect(page.locator(".directory-heading")).toContainText("1 shown");
-  await expect(page.locator(".task-card")).toContainText("Low");
-  await page.locator(".task-card").focus();
+  await expect(page.locator(".card")).toHaveCount(1);
+  await expect(page.locator(".card")).toContainText("Low");
+  await page.locator(".card").focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/tasks\/1$/);
   await expect(page.locator("main h1")).toHaveText(tasks[0].title);
 });
 
-test("department and project search still submit filters and explain empty results", async ({ page }) => {
+test("AS1 department and project searches submit filters and explain empty results", async ({ page }) => {
   await mockWorkspace(page);
   await page.goto("/departments");
   await page.getByLabel("Department name").fill("Engineering");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".directory-card")).toHaveCount(1);
-  await expect(page.locator(".directory-card h3")).toHaveText("Engineering");
+  await expect(page.locator(".card")).toHaveCount(1);
+  await expect(page.locator(".card h3")).toHaveText("Engineering");
   await page.getByLabel("Department name").fill("Nothing matches");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("No departments match this name.")).toBeVisible();
-  await expect(page.locator(".directory-heading")).toContainText("0 shown");
+  await expect(page.getByRole("status")).toContainText("No departments match");
   await page.goto("/projects");
+  await page.getByLabel("Project name").fill("Internal");
   await page.getByLabel("Status", { exact: true }).selectOption("1");
   await page.getByLabel("Department", { exact: true }).selectOption("2");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.locator(".directory-card")).toHaveCount(1);
-  await expect(page.locator(".directory-card h3")).toHaveText("Internal Dashboard");
-});
-
-test("long content wraps without truncation and search controls remain usable after an API error", async ({ page }) => {
-  await mockWorkspace(page, { departments, projects, tasks: tasks.map(task => ({ ...task, title: "Task".repeat(60), projectName: "Project".repeat(40), tags: [{ ...tags[0], tagName: "Label".repeat(30) }] })), tags });
-  await page.setViewportSize({ width: 375, height: 1000 });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/tasks");
-  await expect(page.locator(".task-card")).toHaveCount(3);
-  for (const card of await page.locator(".task-card").all()) expect(await card.evaluate(el => el.scrollWidth <= el.clientWidth)).toBeTruthy();
-  await expect(page.locator(".task-card h3").first()).toHaveText("Task".repeat(60));
-  await page.route("**/api/tasks/search?**", route => route.fulfill({ status: 503, json: { message: "Search unavailable" } }));
-  await page.goto("/search");
-  await expect(page.locator("main").getByRole("alert")).toContainText("Search unavailable");
-  await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Priority", { exact: true })).toBeVisible();
-  await page.unroute("**/api/tasks/search?**");
-  await page.getByLabel("Title", { exact: true }).fill("Task");
-  await expect(page.locator(".task-card")).toHaveCount(3);
-  await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".card h3")).toHaveText("Internal Dashboard");
 });

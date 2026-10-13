@@ -43,13 +43,13 @@ test.afterAll(() => {
 });
 test("guests can browse and protected pages redirect to login", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Work at a glance." })).toBeVisible();
-  await expect(page.locator(".metric")).toHaveCount(4);
+  await expect(page.getByRole("heading", { name: "Move work forward with clarity." })).toBeVisible();
+  await expect(page.locator(".metric")).toHaveCount(3);
   await expect(page.getByRole("link", { name: "Login", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open workspace/ })).toHaveAttribute("href", "/admin/tasks");
   await page.getByRole("link", { name: /Open workspace/ }).click();
   await expect(page).toHaveURL(/\/login$/);
-  for (const path of ["/admin", "/admin/tasks", "/admin/accounts"]) {
+  for (const path of ["/admin", "/admin/tasks", "/admin/accounts", "/profile"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login$/);
   }
@@ -191,11 +191,12 @@ test("Admin account modals update names/roles, delete unused accounts and retain
   expect(ownerId).toBeGreaterThan(0);
   expect(spareId).toBeGreaterThan(0);
 });
-test("invalid and expired sessions redirect once to login without an authentication loop", async ({ page }) => {
+test("invalid refresh tokens and expired legacy sessions redirect without an authentication loop", async ({ page }) => {
   await login(page);
   await page.evaluate(() => {
     const session = JSON.parse(localStorage.getItem("tasktrack.session")!);
     session.token = session.token.split(".").slice(0, 2).join(".") + ".invalid";
+    session.refreshToken = "invalid.refresh.signature";
     localStorage.setItem("tasktrack.session", JSON.stringify(session));
   });
   await page.reload();
@@ -206,6 +207,7 @@ test("invalid and expired sessions redirect once to login without an authenticat
   await page.evaluate(() => {
     const session = JSON.parse(localStorage.getItem("tasktrack.session")!);
     session.expiresAt = new Date(Date.now() - 1000).toISOString();
+    delete session.refreshToken;
     localStorage.setItem("tasktrack.session", JSON.stringify(session));
   });
   await page.reload();
@@ -240,13 +242,65 @@ test("public search combines priority and title filters and opens a detail", asy
   await row.click();
   await expect(page.locator("main h1")).toHaveText(prefix + " ownership");
 });
+test("refresh renews expired access across two tabs with one rotation", async ({ page, context }) => {
+  await login(page);
+  const previous = await page.evaluate(() => JSON.parse(localStorage.getItem("tasktrack.session")!));
+  let refreshRequests = 0;
+  context.on("request", request => { if (request.url().endsWith("/api/auth/refresh")) refreshRequests++; });
+  await page.evaluate(() => {
+    const session = JSON.parse(localStorage.getItem("tasktrack.session")!);
+    session.token = "expired.token.signature";
+    session.expiresAt = new Date(Date.now() - 1000).toISOString();
+    localStorage.setItem("tasktrack.session", JSON.stringify(session));
+  });
+  const other = await context.newPage();
+  await Promise.all([page.reload(), other.goto("/admin")]);
+  for (const tab of [page, other]) await expect(tab.getByRole("heading", { name: "Management dashboard" })).toBeVisible();
+  const current = await page.evaluate(() => JSON.parse(localStorage.getItem("tasktrack.session")!));
+  expect(current.refreshToken).not.toBe(previous.refreshToken);
+  expect(refreshRequests).toBe(1);
+  await other.close();
+});
+
+test("profile updates own name and password then requires the new password", async ({ page }) => {
+  const email = prefix + "profile@example.com";
+  await api("/auth/register", "POST", { fullName: prefix + " profile", email, password });
+  await page.goto("/login");
+  await page.getByLabel(/^Email(?: \*)?$/).fill(email);
+  await page.getByLabel(/^Password(?: \*)?$/).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.getByRole("link", { name: "Profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.getByLabel(/^Email(?: \*)?$/)).toHaveAttribute("readonly", "");
+  await page.getByLabel(/^Full name(?: \*)?$/).fill(prefix + " new name");
+  await page.getByRole("button", { name: "Save name", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Your name has been updated");
+  await page.reload();
+  await expect(page.getByLabel(/^Full name(?: \*)?$/)).toHaveValue(prefix + " new name");
+  await page.getByLabel(/^Current password(?: \*)?$/).fill("wrong-password");
+  await page.getByLabel(/^New password(?: \*)?$/).fill("ChangedBrowser123!");
+  await page.getByLabel(/^Confirm new password(?: \*)?$/).fill("ChangedBrowser123!");
+  await page.getByRole("button", { name: "Change password", exact: true }).click();
+  await expect(page.locator("main [role=alert]")).toContainText("Current password is incorrect");
+  await page.getByLabel(/^Current password(?: \*)?$/).fill(password);
+  await page.getByRole("button", { name: "Change password", exact: true }).click();
+  await expect(page).toHaveURL(/\/login\?passwordChanged=1$/);
+  await expect(page.getByRole("status")).toContainText("Password updated");
+  expect(await page.evaluate(() => localStorage.getItem("tasktrack.session"))).toBeNull();
+  await page.getByLabel(/^Email(?: \*)?$/).fill(email);
+  await page.getByLabel(/^Password(?: \*)?$/).fill("ChangedBrowser123!");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
 test("layouts fit 375, 768 and 1440 pixels; forms and tables remain usable", async ({ page }) => {
   await login(page, "ADMIN");
   const screenshots = process.env.SCREENSHOT_DIR;
   if (screenshots) mkdirSync(screenshots, { recursive: true });
   for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    for (const path of ["/", "/admin", "/admin/tasks", "/admin/accounts", "/login", "/register", "/search"]) {
+    for (const path of ["/", "/admin", "/admin/tasks", "/admin/accounts", "/profile", "/login", "/register", "/search"]) {
       await page.goto(path);
       await expect(page.locator("main h1").first()).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), width + "px " + path).toBeTruthy();

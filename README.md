@@ -13,13 +13,14 @@ npm run dev -- --port 3012
 The API must be running separately. Set `NEXT_PUBLIC_API_URL` before building; default: `http://localhost:5102/api`. Backend CORS must allow the exact frontend origin.
 
 Public routes: overview, departments/projects/tasks/details, tags and task search.
-Overview is a public dashboard with task/project totals, completion and overdue metrics, task status, department workload, project progress and task deadlines. It uses the existing GET APIs; cancelled tasks are excluded from completion rates, and completed/cancelled tasks are excluded from deadlines.
-Public directories share the dashboard's typography, spacing and white card style. Tasks and Search reuse TaskCard, with aligned card content and responsive filters; Tags use the same surfaces with colored label dots.
+The nine public page implementations and global stylesheet match AS1, with management links redirected to `/admin/*`. The original home hero, three totals and projects are retained.
 Public management links now lead to `/admin/*`. The AS1 stylesheet is kept in `app/globals.css`; AS2 account navigation, auth forms, dashboard cards and dialogs use `app/as2.css`. One layout guard keeps the existing public project table scrolling inside its panel on narrow screens.
 Authenticated Staff/Admin: `/admin`, `/admin/departments`, `/admin/projects`, `/admin/tasks`, `/admin/tags`.
 Admin only: `/admin/accounts`.
 
-Register creates Staff. Login stores the JWT/session in localStorage, as permitted by the assignment. Refresh verifies it via `/api/auth/me`; expired/invalid tokens clear the session and return to login. Logout clears it and returns home. The frontend uses only the backend API.
+Register creates Staff. Login stores the JWT/session in localStorage, as permitted by the assignment. Access tokens last 15 minutes; refresh tokens rotate and expire seven days after login. The shared API helper refreshes and retries a 401 once; Web Locks coordinate tabs. Invalid refresh tokens clear the session and return to login. Logout revokes the server session, clears local storage and returns home. The frontend uses only the backend API.
+
+`/profile` lets Staff/Admin update their own name and change password with current-password verification. Password changes revoke old tokens and require signing in again. The backend supports one active refresh session per account, so a new login replaces a previous refresh session.
 
 Create/edit use accessible native dialogs; delete uses confirmation. Tables scroll within their container on narrow screens. Field errors stay visible, labels link to inputs, and reduced motion is supported.
 
