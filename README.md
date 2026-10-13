@@ -56,6 +56,6 @@ Before building, set `NEXT_PUBLIC_API_URL=https://YOUR_RENDER_SERVICE.onrender.c
 
 Check `/login`, `/register`, Staff CRUD, Admin accounts and logout on the stable live URL. See [DEPLOYMENT.md](DEPLOYMENT.md) for the deployment checklist.
 
-Live frontend: [TaskTrack AS2](https://qe190064-prn232-ass2-fe.vercel.app), verified on 13 October 2026. This deployment uses committed source uploaded through the Vercel API; the project still needs a GitHub Login Connection for automatic deployments from future pushes. Grading credentials and live URLs are in the private `QE190064_SE19B_Ass2.docx` submission document.
+Live frontend: [TaskTrack AS2](https://qe190064-prn232-ass2-fe.vercel.app), verified on 13 October 2026. AS1 public pages, profile/password changes, refresh across two tabs and server logout are deployed. Live acceptance passed 76 API checks covering 34 endpoint patterns and 23 UI checks; generated fixtures were cleaned and existing business record counts were preserved. The existing Vercel project is connected to this GitHub repository with `main` as the production branch. Grading credentials and live URLs are in the private `QE190064_SE19B_Ass2.docx` submission document.
 
 See `design-system/tasktrack/MASTER.md` for the current design decisions and `design-system/tasktrack/REVIEW_2026-10-13.md` for AS1 restoration and AS2 verification.

@@ -2,11 +2,11 @@
 
 Dành cho frontend AS2 kế thừa public UI AS1. Backend phải có URL Render HTTPS và database/auth hoạt động trước khi kiểm tra live. Cấu hình đối chiếu ngày 13/10/2026.
 
-Bản production: [TaskTrack AS2](https://qe190064-prn232-ass2-fe.vercel.app), API `https://qe190064-prn232-ass2-be.onrender.com/api`. Đã kiểm tra Register Staff, Admin/Staff, CRUD, quyền, session/logout và responsive trên hệ thống live. Bản hiện tại được deploy qua API từ đúng source đã commit vì tài khoản Vercel chưa có GitHub Login Connection; push Git mới chưa tự deploy frontend. Khi cập nhật, deploy lại source hoặc hoàn tất Git connection trước khi dựa vào auto-deploy.
+Bản production: [TaskTrack AS2](https://qe190064-prn232-ass2-fe.vercel.app), API `https://qe190064-prn232-ass2-be.onrender.com/api`. Chín trang public AS1 và toàn bộ AS2 đã deploy, gồm profile/password, refresh giữa hai tab và logout thu hồi token trên server. Nghiệm thu live đạt 76 lượt API/34 endpoint và 23 kiểm tra UI, không có JavaScript errors; fixture đã dọn, counts nghiệp vụ giữ nguyên.
 
-## Bản bổ sung đang chờ deploy
+## Kết nối Git và cập nhật production
 
-Source đã khôi phục chín trang public AS1 và thêm `/profile`, tự refresh access token, logout thu hồi phiên. Đã đạt 17/17 Playwright và 4/4 unit; build/lint/typecheck đạt. Kết nối Vercel hiện không thấy team có quyền, nên chưa đưa bản bổ sung lên live và chưa xác nhận Git auto-deploy. Kết nối lại đúng tài khoản/workspace vibe-cast trước khi cập nhật project hiện có; không tạo project thay thế chỉ để tránh lỗi quyền.
+Project hiện có `vibe-cast/qe190064-prn232-ass2-fe` đã nối GitHub `NguyenNgu2k5/QE190064_PRN232_Ass2_FE`, production branch `main`. Push vào `main` để Vercel build bản mới; kiểm tra deployment READY, đúng Git SHA và domain production trước khi nghiệm thu. Bản bổ sung đầu tiên deploy bằng CLI chính thức, ID `dpl_6qsY7GYiTnnT58zpbV3kbBNrSihf`. Source đạt 17/17 Playwright và 4/4 unit; build/lint/typecheck đạt. Dùng tài khoản có quyền workspace này khi quản lý project.
 
 ## Cấu hình project
 
