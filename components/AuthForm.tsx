@@ -16,7 +16,6 @@ export function AuthForm({ mode, registered = false, passwordChanged = false }: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
   useEffect(() => { if (Object.keys(errors).length) summary.current?.focus(); }, [errors]);
   const set = (key: keyof AuthValues, value: string) => setValues((current) => ({ ...current, [key]: value }));
@@ -47,9 +46,8 @@ export function AuthForm({ mode, registered = false, passwordChanged = false }: 
       <form onSubmit={submit} noValidate className="auth-form">
         {register && <Field id="auth-fullName" label="Full name" required error={errors.fullName}><input name="fullName" autoComplete="name" maxLength={100} value={values.fullName} onChange={(event) => set("fullName", event.target.value)} /></Field>}
         <Field id="auth-email" label="Email" required error={errors.email}><input name="email" type="email" autoComplete="email" maxLength={254} value={values.email} onChange={(event) => set("email", event.target.value)} placeholder="you@company.com" /></Field>
-        <Field id="auth-password" label="Password" required error={errors.password}><input name="password" type={showPassword ? "text" : "password"} autoComplete={register ? "new-password" : "current-password"} maxLength={128} value={values.password} onChange={(event) => set("password", event.target.value)} /></Field>
-        <button type="button" className="text-button password-toggle" aria-pressed={showPassword} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Hide password" : "Show password"}</button>
-        {register && <><p className="input-hint">Use at least 8 characters.</p><Field id="auth-confirmPassword" label="Confirm password" required error={errors.confirmPassword}><input name="confirmPassword" type={showPassword ? "text" : "password"} autoComplete="new-password" maxLength={128} value={values.confirmPassword} onChange={(event) => set("confirmPassword", event.target.value)} /></Field></>}
+        <Field id="auth-password" label="Password" required error={errors.password}><input name="password" type="password" autoComplete={register ? "new-password" : "current-password"} maxLength={128} value={values.password} onChange={(event) => set("password", event.target.value)} /></Field>
+        {register && <><p className="input-hint">Use at least 8 characters.</p><Field id="auth-confirmPassword" label="Confirm password" required error={errors.confirmPassword}><input name="confirmPassword" type="password" autoComplete="new-password" maxLength={128} value={values.confirmPassword} onChange={(event) => set("confirmPassword", event.target.value)} /></Field></>}
         <button className="button auth-submit" disabled={busy}>{busy ? "Please wait…" : register ? "Create account" : "Sign in"}</button>
       </form>
       <p className="auth-switch">{register ? "Already have an account?" : "New to TaskTrack?"} <Link href={register ? "/login" : "/register"}>{register ? "Sign in" : "Create an account"}</Link></p>

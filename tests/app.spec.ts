@@ -24,6 +24,14 @@ async function login(page: Page, role: "ADMIN" | "STAFF" = "STAFF") {
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "Management dashboard" })).toBeVisible();
 }
+async function findManagementRow(page: Page, text: string) {
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const row = page.getByRole("row").filter({ hasText: text });
+  const next = page.locator(".pagination").getByRole("button", { name: "Next", exact: true });
+  while (!await row.count() && await next.isEnabled()) await next.click();
+  await expect(row).toBeVisible();
+  return row;
+}
 function sql(query: string) {
   const database = process.env.TEST_DATABASE_URL!;
   const parsed = new URL(database);
@@ -43,11 +51,11 @@ test.afterAll(() => {
 });
 test("guests can browse and protected pages redirect to login", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Move work forward with clarity." })).toBeVisible();
-  await expect(page.locator(".metric")).toHaveCount(3);
+  await expect(page.locator(".guest-intro h1")).toBeVisible();
+  await expect(page.locator(".guest-totals a")).toHaveCount(3);
   await expect(page.getByRole("link", { name: "Login", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Open workspace/ })).toHaveAttribute("href", "/admin/tasks");
-  await page.getByRole("link", { name: /Open workspace/ }).click();
+  await expect(page.getByRole("link", { name: "Manage", exact: true })).toHaveAttribute("href", "/admin");
+  await page.getByRole("link", { name: "Manage", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   for (const path of ["/admin", "/admin/tasks", "/admin/accounts", "/profile"]) {
     await page.goto(path);
@@ -120,7 +128,7 @@ test("Staff CRUD modals support keyboard focus, tags, Low priority and soft dele
   await page.getByLabel(/^Name(?: \*)?$/).fill(prefix + " department");
   await page.getByLabel(/^Description(?: \*)?$/).fill("Browser fixture");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  const departmentRow = page.getByRole("row").filter({ hasText: prefix + " department" });
+  const departmentRow = await findManagementRow(page, prefix + " department");
   await expect(departmentRow).toBeVisible();
   await departmentRow.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel(/^Description(?: \*)?$/).fill("Updated in a modal");
@@ -132,13 +140,13 @@ test("Staff CRUD modals support keyboard focus, tags, Low priority and soft dele
   await page.getByLabel(/^Department(?: \*)?$/).selectOption({ label: prefix + " department" });
   await page.getByLabel(/^Start\ date(?: \*)?$/).fill("2026-10-10");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await expect(page.getByRole("row").filter({ hasText: prefix + " project" })).toBeVisible();
+  await findManagementRow(page, prefix + " project");
   await page.goto("/admin/tags");
   await page.getByRole("button", { name: "+ New tag", exact: true }).click();
   await page.getByLabel(/^Name(?: \*)?$/).fill(prefix + " tag");
   await page.getByLabel(/^Color(?: \*)?$/).fill("#2563eb");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  const tagRow = page.getByRole("row").filter({ hasText: prefix + " tag" });
+  const tagRow = await findManagementRow(page, prefix + " tag");
   await expect(tagRow).toBeVisible();
   await tagRow.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel(/^Color(?: \*)?$/).fill("#16a34a");
@@ -150,7 +158,7 @@ test("Staff CRUD modals support keyboard focus, tags, Low priority and soft dele
   await page.getByLabel(/^Priority(?: \*)?$/).selectOption("0");
   await page.getByLabel(prefix + " tag", { exact: true }).check();
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  const row = page.getByRole("row").filter({ hasText: prefix + " task" });
+  const row = await findManagementRow(page, prefix + " task");
   await expect(row).toContainText("Low");
   await row.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByLabel(prefix + " tag", { exact: true })).toBeChecked();
@@ -164,7 +172,7 @@ test("Staff CRUD modals support keyboard focus, tags, Low priority and soft dele
   await page.getByRole("button", { name: "Yes, delete", exact: true }).click();
   await expect(row).toHaveCount(0);
   await page.goto("/admin/tags");
-  await page.getByRole("row").filter({ hasText: prefix + " tag" }).getByRole("button", { name: "Delete", exact: true }).click();
+  await (await findManagementRow(page, prefix + " tag")).getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("button", { name: "Yes, delete", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: prefix + " tag" })).toHaveCount(0);
 });
@@ -232,8 +240,8 @@ test("a 401 during an authenticated write clears the session and returns to logi
   expect(await page.evaluate(() => localStorage.getItem("tasktrack.session"))).toBeNull();
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 });
-test("public search combines priority and title filters and opens a detail", async ({ page }) => {
-  await page.goto("/search");
+test("public task search combines priority and title filters and opens a detail", async ({ page }) => {
+  await page.goto("/tasks");
   await page.getByLabel(/^Title(?: \*)?$/).fill(prefix + " ownership");
   await page.getByLabel(/^Priority(?: \*)?$/).selectOption("0");
   const row = page.locator(".card").filter({ hasText: prefix + " ownership" });
@@ -312,6 +320,8 @@ test("layouts fit 375, 768 and 1440 pixels; forms and tables remain usable", asy
     const logoutBounds = await logout.boundingBox();
     expect(logoutBounds!.x + logoutBounds!.width).toBeLessThanOrEqual(width);
     const management = page.getByRole("navigation", { name: "Management navigation" });
+    const menu = page.getByRole("button", { name: "Workspace menu", exact: true });
+    if (await menu.isVisible() && await menu.getAttribute("aria-expanded") === "false") await menu.click();
     await expect(management.getByRole("link")).toHaveCount(6);
     await management.getByRole("link", { name: "Tasks", exact: true }).focus();
     await page.keyboard.press("Enter");

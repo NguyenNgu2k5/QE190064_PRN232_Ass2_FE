@@ -1,11 +1,11 @@
-# Overview dashboard
+# Guest workspace overview
 
-The 13 October 2026 request replaces the public home hero and portfolio cards with a dashboard. This page overrides the home layout in MASTER.md.
+The latest 13 October 2026 feedback asks for a guest overview distinct from the management dashboard. This page overrides the original home layout in MASTER.md.
 
 - Retain the green theme, Geist type, top navigation and shared UI components.
-- Show four metrics: total tasks, total projects, completion rate and overdue tasks.
+- Use GuestOverview: a light introductory heading, three compact totals and a dark project spotlight. Prefer the first in-progress project; fall back to the first available project.
 - Use the existing public GET APIs. Never invent historical trends or percentage changes.
-- Show a status donut with a text legend, department task counts, project task progress and the earliest open deadlines.
-- Completion excludes cancelled tasks. Overdue means an open task's date is before today in the viewer's timezone.
+- Show up to five project rows with descriptions, status and task counts, alongside up to five departments and their project counts. Full directory links expose the remaining records.
+- Keep analytical charts, completion rates, workload and deadline alerts on the management dashboard.
 - Use scoped styles in app/as2.css, existing dependencies, keyboard-accessible links and layouts for desktop and mobile.
-- Keep the protected management dashboard separate.
+- Guest links open public directories and details. The protected management dashboard keeps its existing analytics, management links and permissions.

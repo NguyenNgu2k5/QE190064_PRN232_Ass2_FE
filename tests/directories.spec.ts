@@ -37,11 +37,13 @@ async function mockWorkspace(page: Page, data = { departments, projects, tasks, 
       (!url.searchParams.get("status") || String(project.status) === url.searchParams.get("status")) &&
       (!url.searchParams.get("departmentId") || String(project.departmentId) === url.searchParams.get("departmentId"))) });
     if (section === "tasks" && id) return route.fulfill({ json: data.tasks.find(task => String(task.taskId) === id) });
+    if (section === "projects" && id) return route.fulfill({ json: data.projects.find(project => String(project.projectId) === id) });
+    if (section === "departments" && id) return route.fulfill({ json: data.departments.find(department => String(department.departmentId) === id) });
     return route.fulfill({ json: data[section as keyof typeof data] ?? [] });
   });
 }
 
-test("AS1 public directories fit mobile, tablet and desktop", async ({ page }) => {
+test("public directories fit mobile, tablet and desktop with one header Manage link", async ({ page }) => {
   await mockWorkspace(page);
   for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -49,14 +51,22 @@ test("AS1 public directories fit mobile, tablet and desktop", async ({ page }) =
       await page.goto("/" + path);
       await expect(page.locator("main h1")).toBeVisible();
       await expect(page.locator("main .card, main .tag").first()).toBeVisible();
+      await expect(page.locator('main a[href^="/admin"]')).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Manage", exact: true })).toHaveCount(1);
+      if (path === "departments") await expect(page.locator(".department-project-count")).toHaveText(["0 projects", "0 projects", "0 projects"]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
     }
+  }
+  for (const path of ["/departments/1", "/projects/1", "/tasks/1"]) {
+    await page.goto(path);
+    await expect(page.locator("main h1")).toBeVisible();
+    await expect(page.locator('main a[href^="/admin"]')).toHaveCount(0);
   }
 });
 
 test("task filters retain low priority and keyboard detail navigation", async ({ page }) => {
   await mockWorkspace(page);
-  await page.goto("/search");
+  await page.goto("/tasks");
   await expect(page.locator(".card")).toHaveCount(3);
   await page.getByLabel("Title", { exact: true }).fill("Build shared");
   await page.getByLabel("Priority", { exact: true }).selectOption("0");
@@ -84,4 +94,65 @@ test("AS1 department and project searches submit filters and explain empty resul
   await page.getByLabel("Department", { exact: true }).selectOption("2");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator(".card h3")).toHaveText("Internal Dashboard");
+});
+
+test("tag name search trims text, ignores case and explains no matches", async ({ page }) => {
+  await mockWorkspace(page);
+  await page.goto("/tags");
+  await expect(page.locator("main .tag")).toHaveCount(2);
+  await page.getByLabel("Tag name").fill("  BACK  ");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main .tag")).toHaveCount(1);
+  await expect(page.locator("main .tag")).toHaveText("backend");
+  await page.getByLabel("Tag name").fill("unknown");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("No tags match");
+  await page.getByLabel("Tag name").fill("");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.locator("main .tag")).toHaveCount(2);
+});
+
+test("workspace search combines four categories and opens tasks filtered by a matching tag", async ({ page }) => {
+  await mockWorkspace(page);
+  await page.goto("/search");
+  await expect(page.locator(".workspace-search-count")).toHaveText("11 results across the workspace");
+  await expect(page.locator(".workspace-results")).toHaveCount(4);
+  await page.getByLabel("Search workspace").fill("  DeSiGn  ");
+  await expect(page.locator(".workspace-search-count")).toContainText("3 results");
+  await expect(page.locator(".workspace-results")).toHaveCount(3);
+  await expect(page.locator("#search-departments-heading")).toContainText("Departments");
+  await expect(page.locator("#search-projects-heading")).toContainText("Projects");
+  await expect(page.locator("#search-tags-heading")).toContainText("Tags");
+  await page.getByLabel("Result type").selectOption("tags");
+  await expect(page.locator(".workspace-results")).toHaveCount(1);
+  await expect(page.locator(".workspace-search-count")).toContainText("1 result");
+  await expect(page.locator("main .card")).toHaveAttribute("href", "/tasks?tagId=2");
+  await page.locator("main .card").focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/tasks\?tagId=2$/);
+  await expect(page.getByLabel("Tag", { exact: true })).toHaveValue("2");
+  await expect(page.locator("main .card")).toHaveCount(2);
+  await page.getByLabel("Tag", { exact: true }).selectOption("");
+  await expect(page.locator("main .card")).toHaveCount(3);
+  await page.goto("/search");
+  await page.getByLabel("Search workspace").fill("keyboard focus");
+  await expect(page.locator("main .card h3")).toHaveText(tasks[1].title);
+  await page.getByLabel("Result type").selectOption("projects");
+  await expect(page.getByRole("status").last()).toContainText("No results match");
+});
+
+test("workspace search shows loading and errors without partial results, and retry recovers", async ({ page }) => {
+  await mockWorkspace(page);
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/tags", async route => { await waiting; await route.fulfill({ status: 503, json: { message: "Unavailable" } }); });
+  await page.goto("/search");
+  await expect(page.getByRole("status", { name: "Loading data" })).toBeVisible();
+  await expect(page.locator(".workspace-search-count, .workspace-results")).toHaveCount(0);
+  release();
+  await expect(page.locator("main [role=alert]")).toContainText("Unavailable");
+  await expect(page.locator(".workspace-search-count, .workspace-results")).toHaveCount(0);
+  await page.unroute("**/api/tags");
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.locator(".workspace-results")).toHaveCount(4);
 });
